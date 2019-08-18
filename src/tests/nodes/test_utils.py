@@ -7,9 +7,10 @@ from easydict import EasyDict
 import numpy as np
 import pandas as pd
 
-from causallift import utils
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from causallift.nodes import utils
 
 
 class UtilsTest(unittest.TestCase):
