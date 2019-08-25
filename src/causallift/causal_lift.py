@@ -3,11 +3,13 @@ from typing import List, Optional, Tuple, Type  # NOQA
 from kedro.io import AbstractDataSet, CSVLocalDataSet, MemoryDataSet, PickleLocalDataSet
 import numpy as np
 import sklearn  # NOQA
+import json
 
 from causallift.context.flexible_context import *  # NOQA
 
 from .nodes.estimate_propensity import *  # NOQA
 from .nodes.model_for_each import *  # NOQA
+from .loggers import setup
 
 # import logging  # NOQA
 # from typing import Any, Dict, List, Optional, Tuple, Union  # NOQA
@@ -17,7 +19,7 @@ from .nodes.model_for_each import *  # NOQA
 # from easydict import EasyDict  # NOQA
 # from IPython.core.display import display  # NOQA
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('causallift')
 
 
 class CausalLift:
@@ -380,78 +382,6 @@ class CausalLift:
                 filepath="../data/08_reporting/estimated_effect_df.csv", version=None
             ),
         ),  # type: Dict[str, AbstractDataSet]
-        logging_config={
-            "disable_existing_loggers": False,
-            "formatters": {
-                "json_formatter": {
-                    "class": "pythonjsonlogger.jsonlogger.JsonFormatter",
-                    "format": "[%(asctime)s|%(name)s|%(funcName)s|%(levelname)s] %(message)s",
-                },
-                "simple": {
-                    "format": "[%(asctime)s|%(name)s|%(levelname)s] %(message)s"
-                },
-            },
-            "handlers": {
-                "console": {
-                    "class": "logging.StreamHandler",
-                    "formatter": "simple",
-                    "level": "INFO",
-                    "stream": "ext://sys.stdout",
-                },
-                "info_file_handler": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "INFO",
-                    "formatter": "simple",
-                    "filename": "./info.log",
-                    "maxBytes": 10485760,  # 10MB
-                    "backupCount": 20,
-                    "encoding": "utf8",
-                    "delay": True,
-                },
-                "error_file_handler": {
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "level": "ERROR",
-                    "formatter": "simple",
-                    "filename": "./errors.log",
-                    "maxBytes": 10485760,  # 10MB
-                    "backupCount": 20,
-                    "encoding": "utf8",
-                    "delay": True,
-                },
-            },
-            "loggers": {
-                "anyconfig": {
-                    "handlers": ["console", "info_file_handler", "error_file_handler"],
-                    "level": "WARNING",
-                    "propagate": False,
-                },
-                "kedro.io": {
-                    "handlers": ["console", "info_file_handler", "error_file_handler"],
-                    "level": "WARNING",
-                    "propagate": False,
-                },
-                "kedro.pipeline": {
-                    "handlers": ["console", "info_file_handler", "error_file_handler"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-                "kedro.runner": {
-                    "handlers": ["console", "info_file_handler", "error_file_handler"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-                "causallift": {
-                    "handlers": ["console", "info_file_handler", "error_file_handler"],
-                    "level": "INFO",
-                    "propagate": False,
-                },
-            },
-            "root": {
-                "handlers": ["console", "info_file_handler", "error_file_handler"],
-                "level": "INFO",
-            },
-            "version": 1,
-        },  # type: Optional[Dict[str, Any]]
     ):
         # type: (...) -> None
 
@@ -476,8 +406,7 @@ class CausalLift:
         self.estimated_effect_df = None  # type: Optional[Type[pd.DataFrame]]
 
         # Instance attributes were defined above.
-        if logging_config:
-            logging.config.dictConfig(logging_config)
+        setup(verbose)
 
         args_raw = dict(
             cols_features=cols_features,
@@ -563,17 +492,8 @@ class CausalLift:
         self.treatment_fraction_train = self.treatment_fractions.train
         self.treatment_fraction_test = self.treatment_fractions.test
 
-        if self.args.verbose >= 3:
-            log.info(
-                "### Treatment fraction in train dataset: {}".format(
-                    self.treatment_fractions.train
-                )
-            )
-            log.info(
-                "### Treatment fraction in test dataset: {}".format(
-                    self.treatment_fractions.test
-                )
-            )
+        log.debug("### Treatment fraction in train dataset: {}".format(self.treatment_fractions.train))
+        log.debug("### Treatment fraction in test dataset: {}".format(self.treatment_fractions.test))
 
         self._separate_train_test()
 
@@ -693,10 +613,10 @@ class CausalLift:
                 "estimated_effect_df"
             )
 
+        log.debug("\n### Treated samples without and with uplift model:")
+        log.debug("\n### Untreated samples without and with uplift model:")
         if verbose >= 3:
-            log.info("\n### Treated samples without and with uplift model:")
             display(self.treated__sim_eval_df)
-            log.info("\n### Untreated samples without and with uplift model:")
             display(self.untreated__sim_eval_df)
 
         # if verbose >= 2:

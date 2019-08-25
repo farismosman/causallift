@@ -37,24 +37,15 @@ def fit_propensity(args, df):
 
     model = initialize_model(args, model_key="propensity_model_params")
 
-    if args.verbose >= 2:
-        log.info("## Propensity scores will be estimated by logistic regression.")
-
-    if args.verbose >= 3:
-        log.info(
-            "### Parameters for grid search of Logistic regression:\n{}".format(
-                args.propensity_model_params
-            )
-        )
+    log.info("## Propensity scores will be estimated by logistic regression.")
+    log.debug("### Parameters for grid search of Logistic regression:\n{}".format(args.propensity_model_params))
 
     model.fit(X_train, y_train)
 
-    if args.verbose >= 3:
-        log.info(
-            "### Best parameter for logistic regression:\n{}".format(model.best_params_)
-        )
+    log.debug("### Best parameter for logistic regression:\n{}".format(model.best_params_))
+    log.info("\n## Coefficients of logistic regression:")
+
     if args.verbose >= 2:
-        log.info("\n## Coefficients of logistic regression:")
         coef_df = pd.DataFrame(
             model.best_estimator_.coef_.reshape(1, -1),
             columns=args.cols_features,
@@ -76,28 +67,24 @@ def estimate_propensity(args, df, model):
     proba_test = model.predict_proba(X_test)[:, 1]
 
     if args.verbose >= 3:
-        log.info("\n### Histogram of propensity score for train and test data:")
+        log.debug("### Histogram of propensity score for train and test data:")
         pd.Series(proba_train).hist()
         pd.Series(proba_test).hist()
         try:
             plt.show()
         except:  # NOQA
-            log.info("[Warning] Could not show the histogram.")
+            log.debug("[Warning] Could not show the histogram.")
 
     # Optional evaluation and report of logistic regression
     if args.verbose >= 3:
         y_pred_train = model.predict(X_train)
         y_pred_test = model.predict(X_test)
-        log.info(
-            "\n### Score Table for logistic regression to calculate propensity score:"
-        )
-        display(score_df(y_train, y_test, y_pred_train, y_pred_test))
 
-        # if args.verbose >= 3:
-        log.info("\n### Confusion Matrix for Train:")
+        log.debug("\n### Score Table for logistic regression to calculate propensity score:")
+        display(score_df(y_train, y_test, y_pred_train, y_pred_test))
+        log.debug("\n### Confusion Matrix for Train:")
         display(conf_mat_df(y_train, y_pred_train))
-        # if args.verbose >= 3:
-        log.info("\n### Confusion Matrix for Test:")
+        log.debug("\n### Confusion Matrix for Test:")
         display(conf_mat_df(y_test, y_pred_test))
 
     train_df = df.xs("train")
@@ -117,15 +104,13 @@ def schedule_propensity_scoring(args, df):
     )
     if not args.need_propensity_scoring:
         if args.enable_ipw:
-            if args.verbose >= 2:
-                log.info(
-                    "Skip estimation of propensity score because "
-                    "{} column found in the data frame. ".format(args.col_propensity)
-                )
+            log.info(
+                "Skip estimation of propensity score because "
+                "{} column found in the data frame. ".format(args.col_propensity)
+            )
         else:
-            if args.verbose >= 2:
-                log.info(
-                    "Skip estimation of propensity score because "
-                    '"enable_ipw" is set to False.'
-                )
+            log.info(
+                "Skip estimation of propensity score because "
+                '"enable_ipw" is set to False.'
+            )
     return args

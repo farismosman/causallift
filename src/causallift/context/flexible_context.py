@@ -40,7 +40,7 @@ from kedro.runner import AbstractRunner, ParallelRunner, SequentialRunner
 from causallift.context.base_context import BaseKedroContext, KedroContextError
 from causallift.pipeline import create_pipeline
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('causallift')
 
 
 class ProjectContext(BaseKedroContext):

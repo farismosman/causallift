@@ -6,7 +6,7 @@ import pandas as pd
 
 from .utils import *  # NOQA
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("causallift")
 
 
 class ModelForTreatedOrUntreated:
@@ -20,8 +20,7 @@ class ModelForTreatedOrUntreated:
         assert isinstance(df_, pd.DataFrame)
         treatment_val = self.treatment_val
 
-        if args.verbose >= 2:
-            log.info("\n\n## Model for Treatment = {}".format(treatment_val))
+        self._display_model_info()
 
         df = df_.query("{}=={}".format(args.col_treatment, treatment_val)).copy()
 
@@ -34,21 +33,9 @@ class ModelForTreatedOrUntreated:
             propensity = df.xs("train")[args.col_propensity]
 
             # avoid propensity near 0 or 1 which will result in too large weight
-            if propensity.min() < args.min_propensity and args.verbose >= 2:
-                log.warning(
-                    "[Warning] Propensity scores below {} were clipped.".format(
-                        args.min_propensity
-                    )
-                )
-            if propensity.max() > args.max_propensity and args.verbose >= 2:
-                log.warning(
-                    "[Warning] Propensity scores above {} were clipped.".format(
-                        args.max_propensity
-                    )
-                )
-            propensity.clip(
-                lower=args.min_propensity, upper=args.max_propensity, inplace=True
-            )
+            self._display_propensity_warnings(args, propensity)
+
+            propensity.clip(lower=args.min_propensity, upper=args.max_propensity, inplace=True)
 
             sample_weight = (
                 (1 / propensity) if treatment_val == 1.0 else (1 / (1 - propensity))
@@ -59,27 +46,9 @@ class ModelForTreatedOrUntreated:
 
         model = initialize_model(args, model_key="uplift_model_params")
         model.fit(X_train, y_train, sample_weight=sample_weight)
-        if args.verbose >= 3:
-            log.info(
-                "### Best parameters of the model trained using samples "
-                "with observational Treatment: {} \n {}".format(
-                    treatment_val, model.best_params_
-                )
-            )
 
-        if args.verbose >= 2:
-            if hasattr(model.best_estimator_, "feature_importances_"):
-                fi_df = pd.DataFrame(
-                    model.best_estimator_.feature_importances_.reshape(1, -1),
-                    index=["feature importance"],
-                )
-                log.info(
-                    "\n### Feature importances of the model trained using samples "
-                    "with observational Treatment: {}".format(treatment_val)
-                )
-                display(fi_df)
-            else:
-                log.info("## Feature importances not available.")
+        self._display_best_parameters(treatment_val, model)
+        self._display_feature_importance(treatment_val, model)
 
         y_pred_train = model.predict(X_train)
         y_pred_test = model.predict(X_test)
@@ -87,12 +56,8 @@ class ModelForTreatedOrUntreated:
         score_original_treatment_df = score_df(
             y_train, y_test, y_pred_train, y_pred_test, average="binary"
         )
-        if args.verbose >= 3:
-            log.info(
-                "\n### Outcome estimated by the model trained using samples "
-                "with observational Treatment: {}".format(treatment_val)
-            )
-            display(score_original_treatment_df)
+
+        self._display_model_outcome(treatment_val, score_original_treatment_df)
 
         model_dict = dict(model=model, eval_df=score_original_treatment_df)
         return model_dict
@@ -135,12 +100,9 @@ class ModelForTreatedOrUntreated:
         score_recommended_treatment_df = score_df(
             y_train, y_test, y_pred_train, y_pred_test, average="binary"
         )
+
+        log.info("### Simulated outcome of samples recommended to be treatment: {} by the uplift model:".format(treatment_val))
         if verbose >= 3:
-            log.info(
-                "\n### Simulated outcome of samples recommended to be treatment: {} by the uplift model:".format(
-                    treatment_val
-                )
-            )
             display(score_recommended_treatment_df)
 
         out_df = pd.DataFrame(index=["train", "test"])
@@ -163,6 +125,56 @@ class ModelForTreatedOrUntreated:
         )
 
         return out_df
+
+
+    def _display_model_info(self):
+        log.info("## Model for Treatment = {}".format(self.treatment_val))
+
+
+    def _display_propensity_warnings(self, args, propensity):
+        if propensity.min() < args.min_propensity:
+            log.warn(
+                "Propensity scores below {} were clipped.".format(
+                    args.min_propensity
+                )
+            )
+        if propensity.max() > args.max_propensity:
+            log.warn(
+                "Propensity scores above {} were clipped.".format(
+                    args.max_propensity
+                )
+            )
+
+
+    def _display_best_parameters(self, treatment_val, model):
+        log.debug(
+                "### Best parameters of the model trained using samples "
+                "with observational Treatment: {} \n {}".format(
+                    treatment_val, model.best_params_
+                )
+            )
+
+
+    def _display_feature_importance(self, treatment_val, model):
+        if hasattr(model.best_estimator_, "feature_importances_"):
+            fi_df = pd.DataFrame(
+                model.best_estimator_.feature_importances_.reshape(1, -1),
+                index=["feature importance"],)
+            log.info(
+                "### Feature importances of the model trained using samples "
+                "with observational Treatment: {}".format(treatment_val)
+            )
+            display(fi_df)
+        else:
+            log.info("## Feature importances not available.")
+
+
+    def _display_model_outcome(self, treatment_val, score_original_treatment_df):
+        log.debug(
+            "### Outcome estimated by the model trained using samples "
+            "with observational Treatment: {}".format(treatment_val)
+        )
+        display(score_original_treatment_df)
 
 
 class ModelForTreated(ModelForTreatedOrUntreated):
