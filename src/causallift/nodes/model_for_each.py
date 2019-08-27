@@ -1,13 +1,9 @@
-import logging
-
 from IPython.display import display
 import numpy as np
 import pandas as pd
 
-from .utils import *  # NOQA
-
-log = logging.getLogger("causallift")
-
+from .utils import (initialize_model, score_df, concat_train_test)
+from causallift.base_causal_lift import log
 
 class ModelForTreatedOrUntreated:
     def __init__(self, treatment_val=1.0):
