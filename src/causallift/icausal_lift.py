@@ -1,20 +1,24 @@
+from IPython.display import display
+
 from .nodes.estimate_propensity import (
-    bundle_train_and_test_data, impute_cols_features, schedule_propensity_scoring,
-    treatment_fractions_, treatment_fractions_, fit_propensity, estimate_propensity,
-    compute_cate, add_cate_to_df, recommend_by_cate, estimate_effect)
+    schedule_propensity_scoring, schedule_propensity_scoring, 
+    fit_propensity, estimate_propensity)
 
 from .nodes.model_for_each import (
-    model_for_treated_simulate_recommendation, model_for_untreated_simulate_recommendation,
-    model_for_treated_fit, model_for_untreated_fit, bundle_treated_and_untreated_models,
-    model_for_treated_predict_proba, model_for_untreated_predict_proba)
+    bundle_train_and_test_data, impute_cols_features,
+    treatment_fractions_, model_for_treated_fit, model_for_untreated_fit,
+    bundle_treated_and_untreated_models, model_for_treated_predict_proba,
+    model_for_untreated_predict_proba,compute_cate,add_cate_to_df,
+    recommend_by_cate,model_for_treated_simulate_recommendation,
+    model_for_untreated_simulate_recommendation,estimate_effect)
 
-from .base_causal_lift import BaseCausalLift
+from .base_causal_lift import BaseCausalLift, log
 
 
-class CausalLift(BaseCausalLift):
+class ICausalLift(BaseCausalLift):
    
     def __init__(self, train_df, test_df, **kwargs):
-        super(CausalLift, self).__init__(**kwargs)
+        super(ICausalLift, self).__init__(**kwargs)
         self.runner = None
         
         self.df = bundle_train_and_test_data(self.args_raw, train_df, test_df)
@@ -27,6 +31,9 @@ class CausalLift(BaseCausalLift):
 
         self.treatment_fraction_train = self.treatment_fractions.train
         self.treatment_fraction_test = self.treatment_fractions.test
+
+        log.debug("### Treatment fraction in train dataset: {}".format(self.treatment_fractions.train))
+        log.debug("### Treatment fraction in test dataset: {}".format(self.treatment_fractions.test))
 
         self._separate_train_test()
 
@@ -43,11 +50,10 @@ class CausalLift(BaseCausalLift):
         return self._separate_train_test()
 
     def estimate_recommendation_impact(
-        self, cate_estimated=None, treatment_fraction_train=None, 
-        treatment_fraction_test=None, verbose=None
-        ):
+        self, cate_estimated=None, treatment_fraction_train=None,
+        treatment_fraction_test=None, verbose=None):
 
-        super(CausalLift, self).estimate_recommendation_impact(
+        super(ICausalLift, self).estimate_recommendation_impact(
             cate_estimated,
             treatment_fraction_train,
             treatment_fraction_test,
@@ -61,3 +67,13 @@ class CausalLift(BaseCausalLift):
         self.treated__sim_eval_df = model_for_treated_simulate_recommendation(self.args, self.df, self.uplift_models_dict)
         self.untreated__sim_eval_df = model_for_untreated_simulate_recommendation(self.args, self.df, self.uplift_models_dict)
         self.estimated_effect_df = estimate_effect(self.treated__sim_eval_df, self.untreated__sim_eval_df)
+
+        log.debug("\n### Treated samples without and with uplift model:")
+        log.debug("\n### Untreated samples without and with uplift model:")
+
+        verbose = verbose or self.args.verbose
+        if verbose >= 3:
+            display(self.treated__sim_eval_df)
+            display(self.untreated__sim_eval_df)
+
+        return self.estimated_effect_df

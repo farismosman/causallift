@@ -5,7 +5,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from causallift import loggers
+from causallift.dataobjects.loggers import Loggers
 from causallift.nodes import model_for_each
 
 
@@ -29,15 +29,15 @@ class ModelForEchTest(unittest.TestCase):
             model.fit(args={}, df_='DataFrame')
 
     def test_should_set_logger_level(self):
-        loggers.setup(verbose=2)
+        Loggers().setup(verbose=2)
         self.assertEqual(20, model_for_each.log.level)
 
-        loggers.setup(verbose=3)
+        Loggers().setup(verbose=3)
         self.assertEqual(10, model_for_each.log.level)
 
     @mock.patch('causallift.nodes.model_for_each.log', autospec=True)
     def test_should_log_only_info_level(self, mock_logger):
-        loggers.setup(verbose=2)
+        Loggers().setup(verbose=2)
         model = model_for_each.ModelForTreatedOrUntreated(treatment_val=0)
 
         model._display_model_info()
