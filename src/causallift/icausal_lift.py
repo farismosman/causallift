@@ -4,13 +4,14 @@ from .nodes.estimate_propensity import (
     schedule_propensity_scoring, schedule_propensity_scoring, 
     fit_propensity, estimate_propensity)
 
-from .nodes.model_for_each import (
-    bundle_train_and_test_data, impute_cols_features,
-    treatment_fractions_, model_for_treated_fit, model_for_untreated_fit,
-    bundle_treated_and_untreated_models, model_for_treated_predict_proba,
-    model_for_untreated_predict_proba,compute_cate,add_cate_to_df,
-    recommend_by_cate,model_for_treated_simulate_recommendation,
-    model_for_untreated_simulate_recommendation,estimate_effect)
+from .nodes.utils import (
+    bundle_train_and_test_data, impute_cols_features, treatment_fractions_,
+    compute_cate, add_cate_to_df, recommend_by_cate, estimate_effect)
+
+from .nodes.imodel_for_each import (
+    model_for_treated_fit, model_for_untreated_fit, bundle_treated_and_untreated_models,
+    model_for_treated_predict_proba, model_for_untreated_predict_proba,
+    model_for_treated_simulate_recommendation, model_for_untreated_simulate_recommendation)
 
 from .base_causal_lift import BaseCausalLift, log
 

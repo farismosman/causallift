@@ -77,3 +77,41 @@ class IModelForTreatedOrUntreated(ModelForTreatedOrUntreated):
         log.info("### Simulated outcome of samples recommended to be treatment: {} by the uplift model:".format(self.treatment_val))
         if args.verbose >= 3:
             display(df)
+
+class IModelForTreated(IModelForTreatedOrUntreated):
+    def __init__(self, *posargs, **kwargs):
+        kwargs.update(treatment_val=1.0)
+        super().__init__(*posargs, **kwargs)
+
+
+class IModelForUntreated(IModelForTreatedOrUntreated):
+    def __init__(self, *posargs, **kwargs):
+        kwargs.update(treatment_val=0.0)
+        super().__init__(*posargs, **kwargs)
+
+
+def model_for_treated_fit(*posargs, **kwargs):
+    return IModelForTreated().fit(*posargs, **kwargs)
+
+
+def model_for_treated_predict_proba(*posargs, **kwargs):
+    return IModelForTreated().predict_proba(*posargs, **kwargs)
+
+
+def model_for_treated_simulate_recommendation(*posargs, **kwargs):
+    return IModelForTreated().simulate_recommendation(*posargs, **kwargs)
+
+
+def model_for_untreated_fit(*posargs, **kwargs):
+    return IModelForUntreated().fit(*posargs, **kwargs)
+
+
+def model_for_untreated_predict_proba(*posargs, **kwargs):
+    return IModelForUntreated().predict_proba(*posargs, **kwargs)
+
+def model_for_untreated_simulate_recommendation(*posargs, **kwargs):
+    return IModelForUntreated().simulate_recommendation(*posargs, **kwargs)
+
+def bundle_treated_and_untreated_models(treated_model, untreated_model):
+    models_dict = dict(treated=treated_model, untreated=untreated_model)
+    return models_dict

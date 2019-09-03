@@ -44,8 +44,7 @@ class CausalLift(BaseCausalLift):
 
     def estimate_recommendation_impact(
         self, cate_estimated=None, treatment_fraction_train=None, 
-        treatment_fraction_test=None, verbose=None
-        ):
+        treatment_fraction_test=None, verbose=None):
 
         super(CausalLift, self).estimate_recommendation_impact(
             cate_estimated,
