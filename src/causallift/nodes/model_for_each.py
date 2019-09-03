@@ -5,6 +5,7 @@ import pandas as pd
 from .utils import (initialize_model, score_df, concat_train_test)
 from causallift.base_causal_lift import log
 
+
 class ModelForTreatedOrUntreated:
     def __init__(self, treatment_val=1.0):
         assert treatment_val in {0.0, 1.0}
@@ -14,49 +15,25 @@ class ModelForTreatedOrUntreated:
     def fit(self, args, df_):
 
         assert isinstance(df_, pd.DataFrame)
-        treatment_val = self.treatment_val
 
-        self._display_model_info()
-
-        df = df_.query("{}=={}".format(args.col_treatment, treatment_val)).copy()
+        df = df_.query("{}=={}".format(args.col_treatment, self.treatment_val)).copy()
 
         X_train = df.xs("train")[args.cols_features]
         y_train = df.xs("train")[args.col_outcome]
         X_test = df.xs("test")[args.cols_features]
         y_test = df.xs("test")[args.col_outcome]
 
-        if args.enable_ipw and (args.col_propensity in df.xs("train").columns):
-            propensity = df.xs("train")[args.col_propensity]
-
-            # avoid propensity near 0 or 1 which will result in too large weight
-            self._display_propensity_warnings(args, propensity)
-
-            propensity.clip(lower=args.min_propensity, upper=args.max_propensity, inplace=True)
-
-            sample_weight = (
-                (1 / propensity) if treatment_val == 1.0 else (1 / (1 - propensity))
-            )
-        else:
-            # do not use sample weight
-            sample_weight = np.ones_like(y_train, dtype=float)
+        sample_weight = self.compute_sample_weight(args, df)
 
         model = initialize_model(args, model_key="uplift_model_params")
         model.fit(X_train, y_train, sample_weight=sample_weight)
 
-        self._display_best_parameters(treatment_val, model)
-        self._display_feature_importance(treatment_val, model)
-
         y_pred_train = model.predict(X_train)
         y_pred_test = model.predict(X_test)
 
-        score_original_treatment_df = score_df(
-            y_train, y_test, y_pred_train, y_pred_test, average="binary"
-        )
+        score_original_treatment_df = score_df(y_train, y_test, y_pred_train, y_pred_test, average="binary")
 
-        self._display_model_outcome(treatment_val, score_original_treatment_df)
-
-        model_dict = dict(model=model, eval_df=score_original_treatment_df)
-        return model_dict
+        return dict(model=model, eval_df=score_original_treatment_df)
 
     def predict_proba(self, args, df_, models_dict):
         model = models_dict[self.treatment_label]["model"]
@@ -71,19 +48,12 @@ class ModelForTreatedOrUntreated:
 
         return concat_train_test(args, y_pred_train, y_pred_test)
 
-        # X = df_[cols_features]
-        # y_pred = model.predict_proba(X)[:, 1]
-        # return y_pred
-
     def simulate_recommendation(self, args, df_, models_dict):
 
         model = models_dict[self.treatment_label]["model"]
         score_original_treatment_df = models_dict[self.treatment_label]["eval_df"]
 
-        treatment_val = self.treatment_val
-        verbose = args.verbose
-
-        df = df_.query("{}=={}".format(args.col_recommendation, treatment_val)).copy()
+        df = df_.query("{}=={}".format(args.col_recommendation, self.treatment_val)).copy()
 
         X_train = df.xs("train")[args.cols_features]
         y_train = df.xs("train")[args.col_outcome]
@@ -93,84 +63,25 @@ class ModelForTreatedOrUntreated:
         y_pred_train = model.predict(X_train)
         y_pred_test = model.predict(X_test)
 
-        score_recommended_treatment_df = score_df(
-            y_train, y_test, y_pred_train, y_pred_test, average="binary"
-        )
-
-        log.info("### Simulated outcome of samples recommended to be treatment: {} by the uplift model:".format(treatment_val))
-        if verbose >= 3:
-            display(score_recommended_treatment_df)
+        score_recommended_treatment_df = score_df(y_train, y_test, y_pred_train, y_pred_test, average="binary")
 
         out_df = pd.DataFrame(index=["train", "test"])
-        out_df["# samples chosen without uplift model"] = score_original_treatment_df[
-            ["# samples"]
-        ]
-        out_df[
-            "observed conversion rate without uplift model"
-        ] = score_original_treatment_df[["observed conversion rate"]]
-        out_df[
-            "# samples recommended by uplift model"
-        ] = score_recommended_treatment_df[["# samples"]]
-        out_df[
-            "predicted conversion rate using uplift model"
-        ] = score_recommended_treatment_df[["predicted conversion rate"]]
-
-        out_df["predicted improvement rate"] = (
-            out_df["predicted conversion rate using uplift model"]
-            / out_df["observed conversion rate without uplift model"]
-        )
+        out_df["no samples chosen without uplift model"] = score_original_treatment_df[["# samples"]]
+        out_df["observed conversion rate without uplift model"] = score_original_treatment_df[["observed conversion rate"]]
+        out_df["no samples recommended by uplift model"] = score_recommended_treatment_df[["# samples"]]
+        out_df["predicted conversion rate using uplift model"] = score_recommended_treatment_df[["predicted conversion rate"]]
+        out_df["predicted improvement rate"] = (out_df["predicted conversion rate using uplift model"]/out_df["observed conversion rate without uplift model"])
 
         return out_df
 
+    def compute_sample_weight(self, args, df):
+        train_df = df.xs("train")
+        if args.enable_ipw and (args.col_propensity in train_df.columns):
+            propensity = train_df[args.col_propensity]
+            propensity.clip(lower=args.min_propensity, upper=args.max_propensity, inplace=True)
+            return ((1 / propensity) if self.treatment_val == 1.0 else (1 / (1 - propensity)))
 
-    def _display_model_info(self):
-        log.info("## Model for Treatment = {}".format(self.treatment_val))
-
-
-    def _display_propensity_warnings(self, args, propensity):
-        if propensity.min() < args.min_propensity:
-            log.warn(
-                "Propensity scores below {} were clipped.".format(
-                    args.min_propensity
-                )
-            )
-        if propensity.max() > args.max_propensity:
-            log.warn(
-                "Propensity scores above {} were clipped.".format(
-                    args.max_propensity
-                )
-            )
-
-
-    def _display_best_parameters(self, treatment_val, model):
-        log.debug(
-                "### Best parameters of the model trained using samples "
-                "with observational Treatment: {} \n {}".format(
-                    treatment_val, model.best_params_
-                )
-            )
-
-
-    def _display_feature_importance(self, treatment_val, model):
-        if hasattr(model.best_estimator_, "feature_importances_"):
-            fi_df = pd.DataFrame(
-                model.best_estimator_.feature_importances_.reshape(1, -1),
-                index=["feature importance"],)
-            log.info(
-                "### Feature importances of the model trained using samples "
-                "with observational Treatment: {}".format(treatment_val)
-            )
-            display(fi_df)
-        else:
-            log.info("## Feature importances not available.")
-
-
-    def _display_model_outcome(self, treatment_val, score_original_treatment_df):
-        log.debug(
-            "### Outcome estimated by the model trained using samples "
-            "with observational Treatment: {}".format(treatment_val)
-        )
-        display(score_original_treatment_df)
+        return np.ones_like(train_df[args.col_outcome], dtype=float)
 
 
 class ModelForTreated(ModelForTreatedOrUntreated):
